@@ -7,14 +7,26 @@ operation = _{ add | subtract | multiply | divide }
     subtract = { "-" }
     multiply = { "*" }
     divide   = { "/" }
-natural_number = @{ "0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+comparison = _{ lte | gte | lt | gt | eq }  // important to maintain this order
+    lte     = { "<=" }
+    gte     = { ">=" }
+    lt      = { "<" }
+    gt      = { ">" }
+    eq      = { "==" }
+
+counting_number = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+natural_number = @{ "0" | counting_number }
 number = @{"-" ? ~ natural_number }
 
 // Suffixes for roll modifiers
 // TODO
 
 // Rules for rolling
-die_roll = { natural_number ~ "d" ~ natural_number }
+failure_rule = { "f" ~ counting_number }
+success_count = { comparison ~ natural_number ~ failure_rule* }
+keep = { ("kl" | "k") ~ natural_number }
+reroll_rule = { "r" ~ natural_number }
+die_roll = { natural_number ~ "d" ~ natural_number ~ ( keep | failure_rule | reroll_rule )? }
 item = _{  die_roll | number }
 
 comment_text = { ANY* }

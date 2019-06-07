@@ -22,10 +22,6 @@ Gnoll Roll supports a subset of Sidekick's syntax:
 
 `/gr 1d10>=8f1f2` - Rolling *one* or *two* is a failure.
 
-`/gr 3d6!` - Exploding dice.
-
-`/gr 1d10!>9` - Explode nine and ten.
-
 `/gr 1d20r1` - Roll twenty, reroll on one (because halflings are lucky).
 
 `/gr 3d10!>=8` - nWoD roll: tens explode, eights and up are treated like a success.
@@ -38,13 +34,21 @@ Gnoll Roll supports a subset of Sidekick's syntax:
 
 `/gr 4d6k3` - Roll four hexahedrons and keep the highest three (D&D 5e ability roll).
 
-`/gr repeat (4d6k3, 6)` - Roll D&D 5e ability score six times (to generate a new character).
-
-`/gr repeat (d6, 3, brief)` - In Nomine. 1, 1, 1.
-
 Notable Gnoll Roll does NOT support saving named dice rolls and some features (e.g. Fudge dice). Since it's open source, though, you're welcome to contribute.
 
 ## Should I use Gnoll Roll?
 
 If you just want a discord dice bot you should use Sidekick. It's older, has more features, and will probably be better supported.
+
 If you looking at the source code of your bot is important to you due to paranoia or if you simply want to contribute yourself, you can use Gnoll Roll.
+
+## TODO
+
+This section is just to keep track of what I need to do for a 'release'.
+
+  - [] Parsing methods should return errors and never panic. Two kinds of panics: Parsing error and unexpected
+  - [] Limit `count` to something reasonable (512 is a good choice)
+  - [] Implement reroll, success and keep rules
+  - [] Figure out how to do tests better (mock the RNG probably)
+  - [] Write discord integration
+  - [] Delete this section

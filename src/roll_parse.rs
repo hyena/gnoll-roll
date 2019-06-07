@@ -2,14 +2,21 @@ use rand::prelude::*;
 use std::cell::Cell;
 
 use pest::Parser;
+use pest::error::Error;
 
 #[derive(Parser)]
 #[grammar = "gnoll_roll.pest"]
 struct GnollRollParser;
 
-use pest::error::Error;
+/// Keeps track of the status of individual rolls for their display
+enum RollEntry {
+    Normal(i64),
+    Failure(i64),
+    Success(i64),
+    Reroll(i64),
+}
 
-/// Rolls a single die term, e.g. 3d20 or 5d10k3f2
+/// Rolls a single die term, e.g. 3d20 or 5d10k3
 /// TODO: Support more operands.
 fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
     let mut rng = thread_rng();
@@ -17,7 +24,28 @@ fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
 
     let mut inner_rules = term.into_inner();  // { number ~ "d" ~ number }
     let count: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
+    // TODO: if count > BIG_NUMBER return Error
     let size: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
+
+    // Helper fn to roll one die.
+    let mut roll_fn = || {
+        if size > 0 {
+            rng.gen_range(1, size)
+        } else {
+            0
+        }
+    };
+
+    // What we do from here is based on our 'mode' given by an optional suffix.
+    if let Some(rule) = inner_rules.next() {
+        match rule.as_rule() {
+            Rule::keep => {
+                let keep_low = rule.as_str().starts_with("kl");
+                let rolls: Vec<u64> = (0..count).map(|_| { roll_fn() }).collect();
+                
+            }
+        }
+    }
     let rolls: Vec<u64> = (0..count).map(|_| { if size > 0 { rng.gen_range(1, size) } else { 0 }}).collect();
 
     
@@ -71,7 +99,8 @@ pub fn parse_roll(file: &str) -> Result<String, Error<Rule>> {
 
                 mode.set(Some(part.as_rule())); 
             }
-            _ => ()
+            Rule::EOI => (),
+            _ => unreachable!()
         }
     };
     result_string.push_str(&format!(" = {}", result_total));
