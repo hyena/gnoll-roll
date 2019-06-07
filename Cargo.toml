@@ -10,4 +10,5 @@ description = "An opensource discord roll bot."
 [dependencies]
 pest = "2.0"
 pest_derive = "2.0"
+rand = "0.6"
 serenity = "0.5"

@@ -1,0 +1,22 @@
+// Pest grammar for the gnoll-roll discord bot
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }  // Really just " " should be sufficient but people are weird.
+
+// Support math
+operation = _{ add | subtract | multiply | divide }
+    add      = { "+" }
+    subtract = { "-" }
+    multiply = { "*" }
+    divide   = { "/" }
+natural_number = @{ "0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+number = @{"-" ? ~ natural_number }
+
+// Suffixes for roll modifiers
+// TODO
+
+// Rules for rolling
+die_roll = { natural_number ~ "d" ~ natural_number }
+item = _{  die_roll | number }
+
+comment_text = { ANY* }
+comment = { "#" ~ comment_text }
+roll = { SOI ~ (item ~ (operation ~ item)* ~ comment?) ~ EOI }
