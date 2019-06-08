@@ -2,7 +2,7 @@
 
 A dice bot for discord.
 
-Gnoll roll was created when some friends using [Sidekick](https://github.com/ArtemGr/Sidekick) had trouble trusting its streaks as 'truly' random and unskewed. While I believe Sidekick is almost certainly unskewed (it's more work to write an unfair roll bot than a fair one and serves no obvious purpose) I can't confirm that as it's closed source. Besides, I wanted some practice writing discord bots and parsers in Rust so this was perfect.
+Gnoll roll was created when some friends using [Sidekick](https://github.com/ArtemGr/Sidekick) brought up concerns about its output. While I believe Sidekick is probably unskewed (it's more work to write an unfair roll bot than a fair one and serves no obvious purpose) I can't confirm that as it's closed source. Besides, I wanted some practice writing discord bots and parsers in Rust so this was perfect.
 
 Gnoll Roll uses Rust's [ThreadRng](https://rust-random.github.io/rand/rand/rngs/struct.ThreadRng.html) for its rolling. You can decide for yourself if that's random enough.
 
@@ -40,7 +40,7 @@ Notable Gnoll Roll does NOT support saving named dice rolls and some features (e
 
 If you just want a discord dice bot you should use Sidekick. It's older, has more features, and will probably be better supported.
 
-If you looking at the source code of your bot is important to you due to paranoia or if you simply want to contribute yourself, you can use Gnoll Roll.
+If you looking at the source code of your bot is important to you or if you simply want to contribute yourself, you can use Gnoll Roll.
 
 ## TODO
 
@@ -48,7 +48,7 @@ This section is just to keep track of what I need to do for a 'release'.
 
 - [ ] Parsing methods should return errors and never panic. Two kinds of panics: Parsing error and unexpected
 - [ ] Limit `count` to something reasonable (512 is a good choice)
-- [ ] Implement reroll, success and keep rules
+- [ ] Implement reroll, success and ~~keep~~ rules
 - [ ] Figure out how to do tests better (~~mock the RNG probably~~ Actually passing in an RNG seems better)
-- [ ] Write discord integration
+- [X] Write discord integration (Basically done)
 - [ ] Delete this section
