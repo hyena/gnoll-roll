@@ -46,9 +46,9 @@ If you looking at the source code of your bot is important to you due to paranoi
 
 This section is just to keep track of what I need to do for a 'release'.
 
-  - [] Parsing methods should return errors and never panic. Two kinds of panics: Parsing error and unexpected
-  - [] Limit `count` to something reasonable (512 is a good choice)
-  - [] Implement reroll, success and keep rules
-  - [] Figure out how to do tests better (mock the RNG probably)
-  - [] Write discord integration
-  - [] Delete this section
+- [ ] Parsing methods should return errors and never panic. Two kinds of panics: Parsing error and unexpected
+- [ ] Limit `count` to something reasonable (512 is a good choice)
+- [ ] Implement reroll, success and keep rules
+- [ ] Figure out how to do tests better (~~mock the RNG probably~~ Actually passing in an RNG seems better)
+- [ ] Write discord integration
+- [ ] Delete this section

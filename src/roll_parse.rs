@@ -1,5 +1,7 @@
+use itertools::Itertools;
 use rand::prelude::*;
 use std::cell::Cell;
+use std::collections::HashSet;
 
 use pest::Parser;
 use pest::error::Error;
@@ -8,50 +10,89 @@ use pest::error::Error;
 #[grammar = "gnoll_roll.pest"]
 struct GnollRollParser;
 
-/// Keeps track of the status of individual rolls for their display
+/// Keeps track of the status of individual rolls for their display and calculation.
 enum RollEntry {
     Normal(i64),
-    Failure(i64),
-    Success(i64),
-    Reroll(i64),
+    Discard(i64),
+// TODO: Pending implementation of other affixes.
+//    Failure(i64),
+//    Reroll(i64),
 }
 
 /// Rolls a single die term, e.g. 3d20 or 5d10k3
 /// TODO: Support more operands.
+/// TODO: Return parse errors.
 fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
     let mut rng = thread_rng();
     println!("Die Roll {:?}", term.as_str());
 
     let mut inner_rules = term.into_inner();  // { number ~ "d" ~ number }
-    let count: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
+    let count: i64 = inner_rules.next().unwrap().as_str().parse().unwrap();
     // TODO: if count > BIG_NUMBER return Error
-    let size: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
+    let size: i64 = inner_rules.next().unwrap().as_str().parse().unwrap();
 
     // Helper fn to roll one die.
     let mut roll_fn = || {
-        if size > 0 {
+        if size > 1 {
             rng.gen_range(1, size)
         } else {
-            0
+            size
         }
     };
 
+    // Figure out the result rolls.
     // What we do from here is based on our 'mode' given by an optional suffix.
-    if let Some(rule) = inner_rules.next() {
-        match rule.as_rule() {
+    let rolls: Vec<RollEntry> = if let Some(suffix) = inner_rules.next() {
+        match suffix.as_rule() {
             Rule::keep => {
-                let keep_low = rule.as_str().starts_with("kl");
-                let rolls: Vec<u64> = (0..count).map(|_| { roll_fn() }).collect();
-                
-            }
-        }
-    }
-    let rolls: Vec<u64> = (0..count).map(|_| { if size > 0 { rng.gen_range(1, size) } else { 0 }}).collect();
+                let keep_low = suffix.as_str().starts_with("kl");
+                // Grab the count of the dice to keep.
+                let keep_count: usize = suffix.into_inner().next().unwrap().as_str().parse().unwrap();
+                let rolls: Vec<i64> = (0..count).map(|_| { roll_fn() }).collect();
 
-    
-    let total: u64 = rolls.iter().sum();
-    let roll_string: String = format!("({})", rolls.into_iter().map(|i| i.to_string()).collect::<Vec<String>>().join("+"));
-    (roll_string, total as i64)
+                // Find the k smallest or largest elements to keep.
+                let keepers: HashSet<usize> =
+                    rolls.iter()
+                    .enumerate()
+                    .sorted_by(|a, b| { 
+                        if keep_low { Ord::cmp(&a.1, &b.1) } else { Ord::cmp(&a.1, &b.1).reverse() }
+                    })
+                    .map(|a| a.0)
+                    .take(keep_count)
+                    .collect();
+        
+                rolls.into_iter().enumerate().map(|(index, value)| {
+                    if keepers.contains(&index) { 
+                        RollEntry::Normal(value) 
+                    } else {
+                        RollEntry::Discard(value) 
+                    }
+                }).collect()
+            }
+            // Future affixes wll go here.
+            _ => unreachable!()
+        }
+    } else {
+        // Normall die roll.
+        (0..count).map(|_| { RollEntry::Normal(roll_fn()) }).collect()
+    };
+
+    // Convert the vector of rolls into a string and a total.
+    let total = rolls.iter().fold(0, |total: i64, roll: &RollEntry| {
+        match roll {
+            RollEntry::Normal(value) => total + value,
+            RollEntry::Discard(_) => total,
+        }
+    });
+    let roll_string: String = rolls.into_iter()
+        .map(|roll: RollEntry| {
+            match roll {
+                RollEntry::Normal(value) => value.to_string(),
+                RollEntry::Discard(value) => format!("~~{}~~", value.to_string())
+            }
+        })
+        .join("+");
+    (format!("({})", roll_string), total)
 }
 
 pub fn parse_roll(file: &str) -> Result<String, Error<Rule>> {
@@ -150,5 +191,15 @@ mod tests {
     #[test]
     fn test_bad_parse() {
         assert!(parse_roll("spaghetti").is_err());
+    }
+
+    #[test]
+    fn test_keep_high() {
+        parse_roll("2d20k1").unwrap();
+    }
+
+    #[test]
+    fn test_keep_low() {
+        parse_roll("2d20 kl 1").unwrap();
     }
 }
