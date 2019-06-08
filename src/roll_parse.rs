@@ -3,8 +3,8 @@ use rand::prelude::*;
 use std::cell::Cell;
 use std::collections::HashSet;
 
-use pest::Parser;
 use pest::error::Error;
+use pest::Parser;
 
 #[derive(Parser)]
 #[grammar = "gnoll_roll.pest"]
@@ -14,19 +14,18 @@ struct GnollRollParser;
 enum RollEntry {
     Normal(i64),
     Discard(i64),
-// TODO: Pending implementation of other affixes.
-//    Failure(i64),
-//    Reroll(i64),
+    // TODO: Pending implementation of other affixes.
+    //    Failure(i64),
+    //    Reroll(i64),
 }
 
 /// Rolls a single die term, e.g. 3d20 or 5d10k3
 /// TODO: Support more operands.
 /// TODO: Return parse errors.
-fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
-    let mut rng = thread_rng();
+fn roll_die(term: pest::iterators::Pair<Rule>, rng: &mut impl Rng) -> (String, i64) {
     println!("Die Roll {:?}", term.as_str());
 
-    let mut inner_rules = term.into_inner();  // { number ~ "d" ~ number }
+    let mut inner_rules = term.into_inner(); // { number ~ "d" ~ number }
     let count: i64 = inner_rules.next().unwrap().as_str().parse().unwrap();
     // TODO: if count > BIG_NUMBER return Error
     let size: i64 = inner_rules.next().unwrap().as_str().parse().unwrap();
@@ -34,7 +33,9 @@ fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
     // Helper fn to roll one die.
     let mut roll_fn = || {
         if size > 1 {
-            rng.gen_range(1, size)
+            let x = rng.gen_range(1, size);
+            println!("Randomly generated {}", x);
+            x
         } else {
             size
         }
@@ -47,56 +48,69 @@ fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
             Rule::keep => {
                 let keep_low = suffix.as_str().starts_with("kl");
                 // Grab the count of the dice to keep.
-                let keep_count: usize = suffix.into_inner().next().unwrap().as_str().parse().unwrap();
-                let rolls: Vec<i64> = (0..count).map(|_| { roll_fn() }).collect();
+                let keep_count: usize = suffix
+                    .into_inner()
+                    .next()
+                    .unwrap()
+                    .as_str()
+                    .parse()
+                    .unwrap();
+                let rolls: Vec<i64> = (0..count).map(|_| roll_fn()).collect();
 
                 // Find the k smallest or largest elements to keep.
-                let keepers: HashSet<usize> =
-                    rolls.iter()
+                let keepers: HashSet<usize> = rolls
+                    .iter()
                     .enumerate()
-                    .sorted_by(|a, b| { 
-                        if keep_low { Ord::cmp(&a.1, &b.1) } else { Ord::cmp(&a.1, &b.1).reverse() }
+                    .sorted_by(|a, b| {
+                        if keep_low {
+                            Ord::cmp(&a.1, &b.1)
+                        } else {
+                            Ord::cmp(&a.1, &b.1).reverse()
+                        }
                     })
                     .map(|a| a.0)
                     .take(keep_count)
                     .collect();
-        
-                rolls.into_iter().enumerate().map(|(index, value)| {
-                    if keepers.contains(&index) { 
-                        RollEntry::Normal(value) 
-                    } else {
-                        RollEntry::Discard(value) 
-                    }
-                }).collect()
+
+                rolls
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        if keepers.contains(&index) {
+                            RollEntry::Normal(value)
+                        } else {
+                            RollEntry::Discard(value)
+                        }
+                    })
+                    .collect()
             }
             // Future affixes wll go here.
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     } else {
         // Normall die roll.
-        (0..count).map(|_| { RollEntry::Normal(roll_fn()) }).collect()
+        (0..count).map(|_| RollEntry::Normal(roll_fn())).collect()
     };
 
     // Convert the vector of rolls into a string and a total.
-    let total = rolls.iter().fold(0, |total: i64, roll: &RollEntry| {
-        match roll {
+    let total = rolls
+        .iter()
+        .fold(0, |total: i64, roll: &RollEntry| match roll {
             RollEntry::Normal(value) => total + value,
             RollEntry::Discard(_) => total,
-        }
-    });
-    let roll_string: String = rolls.into_iter()
-        .map(|roll: RollEntry| {
-            match roll {
-                RollEntry::Normal(value) => value.to_string(),
-                RollEntry::Discard(value) => format!("~~{}~~", value.to_string())
-            }
+        });
+    let roll_string: String = rolls
+        .into_iter()
+        .map(|roll: RollEntry| match roll {
+            RollEntry::Normal(value) => value.to_string(),
+            RollEntry::Discard(value) => format!("~~{}~~", value.to_string()),
         })
         .join("+");
     (format!("({})", roll_string), total)
 }
 
-pub fn parse_roll(file: &str) -> Result<String, Error<Rule>> {
-    let roll = GnollRollParser::parse(Rule::roll, file)?.next().unwrap();
+fn parse_roll_with_rng(die_str: &str, mut rng: impl Rng) -> Result<(String, i64), Error<Rule>> {
+    let roll = GnollRollParser::parse(Rule::roll, die_str)?.next().unwrap();
     println!("Roll: {:?}", roll.as_str());
 
     let mut result_string = String::new();
@@ -104,20 +118,17 @@ pub fn parse_roll(file: &str) -> Result<String, Error<Rule>> {
     let mode: Cell<Option<Rule>> = Cell::new(None);
     let mut comment: Option<&str> = None;
 
-    let do_math = |a: i64, b: i64| {
-        match mode.get() {
-            None => {
-                assert_eq!(a, 0);
-                b
-            }
-            Some(Rule::add) => a + b,
-            Some(Rule::subtract) => a - b,
-            Some(Rule::multiply) => a * b,
-            Some(Rule::divide) => a / b,
-            _ => unreachable!()
+    let do_math = |a: i64, b: i64| match mode.get() {
+        None => {
+            assert_eq!(a, 0);
+            b
         }
+        Some(Rule::add) => a + b,
+        Some(Rule::subtract) => a - b,
+        Some(Rule::multiply) => a * b,
+        Some(Rule::divide) => a / b,
+        _ => unreachable!(),
     };
-
 
     for part in roll.into_inner() {
         match part.as_rule() {
@@ -129,7 +140,7 @@ pub fn parse_roll(file: &str) -> Result<String, Error<Rule>> {
                 result_total = do_math(result_total, part.as_str().parse().unwrap());
             }
             Rule::die_roll => {
-                let value = roll_die(part);
+                let value = roll_die(part, &mut rng);
                 result_string.push_str(&value.0);
                 result_total = do_math(result_total, value.1);
             }
@@ -138,19 +149,23 @@ pub fn parse_roll(file: &str) -> Result<String, Error<Rule>> {
                 result_string.push_str(part.as_str());
                 result_string.push_str(" ");
 
-                mode.set(Some(part.as_rule())); 
+                mode.set(Some(part.as_rule()));
             }
             Rule::EOI => (),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
-    };
+    }
     result_string.push_str(&format!(" = {}", result_total));
     if let Some(c) = comment {
         result_string.push_str("  # ");
         result_string.push_str(c);
     }
     println!("{}", result_string);
-    Ok(result_string)
+    Ok((result_string, result_total))
+}
+
+pub fn parse_roll(die_str: &str) -> Result<(String, i64), Error<Rule>> {
+    parse_roll_with_rng(die_str, thread_rng())
 }
 
 #[cfg(test)]
@@ -158,19 +173,45 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
+    /// A fake Rng that we can use to control 'random' dice rolls.
+    struct LoadedDieRng<I: Iterator<Item = u64>>(I);
+
+    impl<I: Iterator<Item = u64>> RngCore for LoadedDieRng<I> {
+        fn next_u32(&mut self) -> u32 {
+            self.next_u64() as u32
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            self.0.next().unwrap()
+        }
+
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            unimplemented!();
+        }
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+            unimplemented!();
+        }
+    }
+
+    /// Convenience function that rolls parses a string, rolls it with the given values, and returns the value.
+    fn roll(die_str: &str, dice_rolls: Vec<u64>) -> i64 {
+        parse_roll_with_rng(die_str, LoadedDieRng(dice_rolls.into_iter())).unwrap().1
+    }
+
     #[test]
     fn test_roll_0() {
-        parse_roll("1d0").unwrap();
-//        assert_eq!(0, )
+        assert_eq!(roll("1d0", vec![1]), 0);
     }
+
     #[test]
     fn test_add() {
-        parse_roll("5 + 7").unwrap();
+        assert_eq!(roll("5 + 7", vec![]), 12);
     }
 
     #[test]
     fn test_simple_roll() {
-        parse_roll("5d6").unwrap();
+        assert_eq!(roll("5d6", vec![1, 2, 3, 4, 5]), 15);
     }
 
     #[test]
