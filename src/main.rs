@@ -35,7 +35,7 @@ fn main() {
 command!(roll(_context, msg, args) {
     match roll_parse::parse_roll(args.full()) {
         Ok((result_str, _)) => {
-            msg.reply(&result_str);
+            msg.reply(&format!("`{}` {}", args.full(), &result_str));
         }
         Err(_) => {
             msg.reply("Bad format.");

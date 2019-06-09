@@ -49,6 +49,7 @@ This section is just to keep track of what I need to do for a 'release'.
 - [ ] Parsing methods should return errors and never panic. Two kinds of panics: Parsing error and unexpected
 - [ ] Limit `count` to something reasonable (512 is a good choice)
 - [ ] Implement reroll, success and ~~keep~~ rules
-- [ ] Figure out how to do tests better (~~mock the RNG probably~~ Actually passing in an RNG seems better)
+- [X] Figure out how to do tests better (~~mock the RNG probably~~ ~~Actually passing in an RNG seems better~~ Ended up actually implementing a trait for this.)
 - [X] Write discord integration (Basically done)
+- [ ] Handle comments better
 - [ ] Delete this section
