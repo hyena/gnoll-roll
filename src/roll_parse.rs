@@ -19,27 +19,33 @@ enum RollEntry {
     //    Reroll(i64),
 }
 
+/// Trait we use for rolling dice based on an RNG so we can keep it testable
+trait Roller {
+    fn roll(&mut self, sides: u64) -> u64;
+}
+
+#[cfg(not(test))]
+impl Roller for ThreadRng {
+    fn roll(&mut self, sides: u64) -> u64 {
+        if sides > 1 {
+            self.gen_range(1, sides) as u64
+        } else {
+            sides
+        }
+    }
+}
+
 /// Rolls a single die term, e.g. 3d20 or 5d10k3
 /// TODO: Support more operands.
 /// TODO: Return parse errors.
-fn roll_die(term: pest::iterators::Pair<Rule>, rng: &mut impl Rng) -> (String, i64) {
+fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
     println!("Die Roll {:?}", term.as_str());
 
+    let mut rng = thread_rng();
     let mut inner_rules = term.into_inner(); // { number ~ "d" ~ number }
-    let count: i64 = inner_rules.next().unwrap().as_str().parse().unwrap();
+    let count: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
     // TODO: if count > BIG_NUMBER return Error
-    let size: i64 = inner_rules.next().unwrap().as_str().parse().unwrap();
-
-    // Helper fn to roll one die.
-    let mut roll_fn = || {
-        if size > 1 {
-            let x = rng.gen_range(1, size);
-            println!("Randomly generated {}", x);
-            x
-        } else {
-            size
-        }
-    };
+    let size: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
 
     // Figure out the result rolls.
     // What we do from here is based on our 'mode' given by an optional suffix.
@@ -55,7 +61,7 @@ fn roll_die(term: pest::iterators::Pair<Rule>, rng: &mut impl Rng) -> (String, i
                     .as_str()
                     .parse()
                     .unwrap();
-                let rolls: Vec<i64> = (0..count).map(|_| roll_fn()).collect();
+                let rolls: Vec<i64> = (0..count).map(|_| rng.roll(size) as i64).collect();
 
                 // Find the k smallest or largest elements to keep.
                 let keepers: HashSet<usize> = rolls
@@ -89,7 +95,7 @@ fn roll_die(term: pest::iterators::Pair<Rule>, rng: &mut impl Rng) -> (String, i
         }
     } else {
         // Normall die roll.
-        (0..count).map(|_| RollEntry::Normal(roll_fn())).collect()
+        (0..count).map(|_| RollEntry::Normal(rng.roll(size) as i64)).collect()
     };
 
     // Convert the vector of rolls into a string and a total.
@@ -109,7 +115,7 @@ fn roll_die(term: pest::iterators::Pair<Rule>, rng: &mut impl Rng) -> (String, i
     (format!("({})", roll_string), total)
 }
 
-fn parse_roll_with_rng(die_str: &str, mut rng: impl Rng) -> Result<(String, i64), Error<Rule>> {
+pub fn parse_roll(die_str: &str) -> Result<(String, i64), Error<Rule>> {
     let roll = GnollRollParser::parse(Rule::roll, die_str)?.next().unwrap();
     println!("Roll: {:?}", roll.as_str());
 
@@ -140,7 +146,7 @@ fn parse_roll_with_rng(die_str: &str, mut rng: impl Rng) -> Result<(String, i64)
                 result_total = do_math(result_total, part.as_str().parse().unwrap());
             }
             Rule::die_roll => {
-                let value = roll_die(part, &mut rng);
+                let value = roll_die(part);
                 result_string.push_str(&value.0);
                 result_total = do_math(result_total, value.1);
             }
@@ -164,69 +170,61 @@ fn parse_roll_with_rng(die_str: &str, mut rng: impl Rng) -> Result<(String, i64)
     Ok((result_string, result_total))
 }
 
-pub fn parse_roll(die_str: &str) -> Result<(String, i64), Error<Rule>> {
-    parse_roll_with_rng(die_str, thread_rng())
-}
-
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use std::cell::RefCell;
 
-    /// A fake Rng that we can use to control 'random' dice rolls.
-    struct LoadedDieRng<I: Iterator<Item = u64>>(I);
+    // Thread-local space to store dice rolls and the rule for returning them.
+    thread_local! {
+        static FUTURE_ROLLS: RefCell<Vec<u64>> = RefCell::new(vec![]);
+    }
 
-    impl<I: Iterator<Item = u64>> RngCore for LoadedDieRng<I> {
-        fn next_u32(&mut self) -> u32 {
-            self.next_u64() as u32
-        }
-
-        fn next_u64(&mut self) -> u64 {
-            self.0.next().unwrap()
-        }
-
-        fn fill_bytes(&mut self, dest: &mut [u8]) {
-            unimplemented!();
-        }
-
-        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-            unimplemented!();
+    impl Roller for ThreadRng {
+        fn roll(&mut self, _: u64) -> u64 {
+            FUTURE_ROLLS.with(|v| {
+                v.borrow_mut().pop().unwrap()
+            })
         }
     }
 
     /// Convenience function that rolls parses a string, rolls it with the given values, and returns the value.
-    fn roll(die_str: &str, dice_rolls: Vec<u64>) -> i64 {
-        parse_roll_with_rng(die_str, LoadedDieRng(dice_rolls.into_iter())).unwrap().1
+    fn roll(die_str: &str, dice_rolls: &[u64]) -> i64 {
+        FUTURE_ROLLS.with(|v| {
+            v.replace(dice_rolls.to_vec())
+        });
+        parse_roll(die_str).unwrap().1
     }
 
     #[test]
     fn test_roll_0() {
-        assert_eq!(roll("1d0", vec![1]), 0);
+        assert_eq!(roll("1d0", &[0]), 0);
     }
 
     #[test]
     fn test_add() {
-        assert_eq!(roll("5 + 7", vec![]), 12);
+        assert_eq!(roll("5 + 7", &[]), 12);
     }
 
     #[test]
     fn test_simple_roll() {
-        assert_eq!(roll("5d6", vec![1, 2, 3, 4, 5]), 15);
+        assert_eq!(roll("5d6", &[1, 2, 3, 4, 5]), 15);
     }
 
     #[test]
     fn test_roll_with_math() {
-        parse_roll("1d6 - 7").unwrap();
+        assert_eq!(roll("1d6 - 7", &[1]), -6);
     }
 
     #[test]
     fn test_comment() {
-        parse_roll("5d20 + 17  # Seduce the dragon").unwrap();
+        assert_eq!(roll("1d20 + 17  # Seduce the dragon", &[3]), 20);
     }
 
     #[test]
     fn test_leading_ws_comment() {
-        parse_roll("1d20 + 1#     Seduce the dragon").unwrap();
+        assert_eq!(roll("1d20 +17#     Seduce the dragon", &[3]), 20);
     }
 
     #[test]
@@ -236,11 +234,11 @@ mod tests {
 
     #[test]
     fn test_keep_high() {
-        parse_roll("2d20k1").unwrap();
+        assert_eq!(roll("2d20k1", &[17, 5]), 17);
     }
 
     #[test]
     fn test_keep_low() {
-        parse_roll("2d20 kl 1").unwrap();
+        assert_eq!(roll("2d20 kl 1", &[17, 5]), 5);
     }
 }

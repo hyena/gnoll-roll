@@ -11,7 +11,6 @@ use std::env;
 use serenity::client::Client;
 use serenity::prelude::EventHandler;
 use serenity::framework::standard::StandardFramework;
-use serenity::utils::MessageBuilder;
 
 pub mod roll_parse;
 
@@ -35,11 +34,11 @@ fn main() {
 
 command!(roll(_context, msg, args) {
     match roll_parse::parse_roll(args.full()) {
-        Ok((result_str, total)) => {
+        Ok((result_str, _)) => {
             msg.reply(&result_str);
         }
-        Err(why) => {
-            msg.reply("Bad format");
+        Err(_) => {
+            msg.reply("Bad format.");
         }
     };
 });
