@@ -90,7 +90,24 @@ fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
                     })
                     .collect()
             }
-            // Future affixes wll go here.
+            Rule::reroll => {
+                let reroll_number: i64 = suffix
+                    .into_inner()
+                    .next()
+                    .unwrap()
+                    .as_str()
+                    .parse()
+                    .unwrap();
+
+                (0..count).flat_map(|_| {
+                    let v = rng.roll(size) as i64;
+                    match v {
+                        _ if v == reroll_number => vec![RollEntry::Discard(reroll_number as i64), RollEntry::Normal(rng.roll(size) as i64)],
+                        _ => vec![RollEntry::Normal(v)]
+                    }
+                }).collect()
+            }
+            // Future affixes will go here.
             _ => unreachable!(),
         }
     } else {
@@ -240,5 +257,10 @@ mod tests {
     #[test]
     fn test_keep_low() {
         assert_eq!(roll("2d20 kl 1", &[17, 5]), 5);
+    }
+
+    #[test]
+    fn test_reroll() {
+        assert_eq!(roll("3d10r3", &[7, 1, 3, 5]), 13);
     }
 }

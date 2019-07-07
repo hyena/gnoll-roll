@@ -51,5 +51,5 @@ This section is just to keep track of what I need to do for a 'release'.
 - [ ] Implement reroll, success and ~~keep~~ rules
 - [X] Figure out how to do tests better (~~mock the RNG probably~~ ~~Actually passing in an RNG seems better~~ Ended up actually implementing a trait for this.)
 - [X] Write discord integration (Basically done)
-- [ ] Handle comments better
+- [ ] Handle comments
 - [ ] Delete this section

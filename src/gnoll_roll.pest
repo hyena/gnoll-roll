@@ -24,10 +24,10 @@ number = @{"-" ? ~ natural_number }
 // Rules for rolling
 // failure_rule = { "f" ~ counting_number }
 // success_count = { comparison ~ natural_number ~ failure_rule* }
-// reroll_rule = { "r" ~ natural_number }
+reroll = { "r" ~ natural_number }
 keep = { ("kl" | "k") ~ natural_number }
-// die_roll = { natural_number ~ "d" ~ natural_number ~ ( keep | failure_rule | reroll_rule )? }
-die_roll = { natural_number ~ "d" ~ natural_number ~ keep? }
+die_roll = { natural_number ~ "d" ~ natural_number ~ ( keep | reroll )? }
+// die_roll = { natural_number ~ "d" ~ natural_number ~ keep? }
 
 item = _{  die_roll | number }
 
