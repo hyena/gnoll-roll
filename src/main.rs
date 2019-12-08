@@ -6,12 +6,26 @@ extern crate pest_derive;
 #[macro_use]
 extern crate serenity;
 
-use std::env;
-
 use serenity::client::Client;
-use serenity::prelude::EventHandler;
-use serenity::framework::standard::StandardFramework;
+use serenity::model::channel::Message;
+use serenity::prelude::{EventHandler, Context};
+use serenity::framework::standard::{
+    Args,
+    StandardFramework,
+    CommandResult,
+    macros::{
+        command,
+        group
+    }
+};
 
+group!({
+    name: "general",
+    options: {},
+    commands: [gr]
+});
+
+use std::env;
 pub mod roll_parse;
 
 struct Handler;
@@ -24,7 +38,7 @@ fn main() {
         .expect("Error creating client");
     client.with_framework(StandardFramework::new()
         .configure(|c| c.prefix("/")) // set the bot's prefix to "~"
-        .cmd("gr", roll));
+        .group(&GENERAL_GROUP));
 
     // start listening for events by starting a single shard
     if let Err(why) = client.start() {
@@ -32,13 +46,16 @@ fn main() {
     }
 }
 
-command!(roll(_context, msg, args) {
-    match roll_parse::parse_roll(args.full()) {
+#[command]
+fn gr(ctx: &mut Context, msg: &Message, args: Args) -> CommandResult {
+    match roll_parse::parse_roll(args.rest()) {
         Ok((result_str, _)) => {
-            msg.reply(&format!("`{}` {}", args.full(), &result_str));
+            msg.reply(&ctx, &format!("`{}` {}", args.message(), &result_str));
         }
         Err(_) => {
-            msg.reply("Bad format.");
+            msg.reply(&ctx, "Bad format.");
         }
     };
-});
+
+    Ok(())
+}
