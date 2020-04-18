@@ -28,7 +28,7 @@ trait Roller {
 impl Roller for ThreadRng {
     fn roll(&mut self, sides: u64) -> u64 {
         if sides > 1 {
-            self.gen_range(1, sides) as u64
+            self.gen_range(1, sides + 1) as u64
         } else {
             sides
         }
@@ -44,7 +44,9 @@ fn roll_die(term: pest::iterators::Pair<Rule>) -> (String, i64) {
     let mut rng = thread_rng();
     let mut inner_rules = term.into_inner(); // { number ~ "d" ~ number }
     let count: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
-    // TODO: if count > BIG_NUMBER return Error
+    if count > 1000000 {
+        return ("Smart ass.".to_string(), 0)
+    }
     let size: u64 = inner_rules.next().unwrap().as_str().parse().unwrap();
 
     // Figure out the result rolls.
